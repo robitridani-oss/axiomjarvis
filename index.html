@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AXIOM — Personal AI</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --bg: #07060c;
+  --bg-panel: #0e0b18;
+  --bg-panel-2: #120e1f;
+  --border: rgba(150,120,255,0.16);
+  --border-strong: rgba(170,140,255,0.32);
+  --violet: #8b5cf6;
+  --violet-bright: #b9a2ff;
+  --magenta: #e879f9;
+  --cyan: #7ee6f2;
+  --text: #efe9ff;
+  --text-dim: #8a8099;
+  --text-dimmer: #564f66;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0;
+  background:
+    radial-gradient(ellipse 900px 500px at 50% -10%, rgba(139,92,246,0.14), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 100% 100%, rgba(232,121,249,0.06), transparent 60%),
+    var(--bg);
+  color:var(--text);
+  font-family:'Space Grotesk', sans-serif;
+  overflow:hidden;
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+}
+
+/* ---------- top bar ---------- */
+.topbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:14px 22px;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-weight:700;
+  font-size:15px;
+  letter-spacing:0.06em;
+}
+.brand-mark{
+  width:9px;height:9px;border-radius:50%;
+  background:var(--violet-bright);
+  box-shadow:0 0 10px 2px var(--violet);
+}
+.status-pill{
+  display:flex;align-items:center;gap:7px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  color:var(--text-dim);
+  padding:5px 12px;
+  border:1px solid var(--border);
+  border-radius:20px;
+  background:rgba(139,92,246,0.05);
+  transition:all .35s ease;
+}
+.status-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--text-dimmer);
+  transition:all .35s ease;
+}
+.status-pill.state-listening{color:var(--cyan);border-color:rgba(126,230,242,0.35);}
+.status-pill.state-listening .status-dot{background:var(--cyan);box-shadow:0 0 8px 2px var(--cyan);}
+.status-pill.state-thinking{color:var(--violet-bright);border-color:var(--border-strong);}
+.status-pill.state-thinking .status-dot{background:var(--violet-bright);box-shadow:0 0 8px 2px var(--violet);animation:pulse-dot 0.9s infinite;}
+.status-pill.state-speaking{color:var(--magenta);border-color:rgba(232,121,249,0.35);}
+.status-pill.state-speaking .status-dot{background:var(--magenta);box-shadow:0 0 8px 2px var(--magenta);}
+@keyframes pulse-dot{0%,100%{opacity:1;}50%{opacity:0.35;}}
+
+.clock{
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;
+  color:var(--text-dim);
+  letter-spacing:0.04em;
+}
+
+/* ---------- main layout ---------- */
+.main{
+  flex:1;
+  display:grid;
+  grid-template-columns:220px 1fr 260px;
+  gap:1px;
+  overflow:hidden;
+  min-height:0;
+}
+.panel{
+  background:var(--bg-panel);
+  border-right:1px solid var(--border);
+  padding:18px 16px;
+  overflow-y:auto;
+  min-height:0;
+}
+.panel:last-child{border-right:none;border-left:1px solid var(--border);}
+.panel::-webkit-scrollbar{width:5px;}
+.panel::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px;}
+
+.section-label{
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;
+  letter-spacing:0.12em;
+  color:var(--text-dimmer);
+  margin:0 0 10px 2px;
+}
+
+/* calendar */
+.cal-head{
+  display:flex;justify-content:space-between;align-items:baseline;
+  margin-bottom:10px;
+}
+.cal-month{font-size:13px;font-weight:600;color:var(--text);}
+.cal-grid{
+  display:grid;grid-template-columns:repeat(7,1fr);
+  gap:3px;margin-bottom:22px;
+}
+.cal-dow{
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;color:var(--text-dimmer);
+  text-align:center;padding-bottom:4px;
+}
+.cal-day{
+  aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:var(--text-dim);border-radius:6px;
+}
+.cal-day.today{
+  background:linear-gradient(135deg,var(--violet),var(--magenta));
+  color:#0a0714;font-weight:700;
+}
+.cal-day.empty{opacity:0;}
+
+/* tasks */
+.task{
+  display:flex;align-items:flex-start;gap:9px;
+  padding:8px 0;
+  border-bottom:1px solid rgba(150,120,255,0.08);
+  font-size:12.5px;
+  color:var(--text-dim);
+  cursor:pointer;
+}
+.task:last-child{border-bottom:none;}
+.task-check{
+  width:13px;height:13px;border-radius:4px;
+  border:1.5px solid var(--border-strong);
+  flex-shrink:0;margin-top:2px;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .2s ease;
+}
+.task.done .task-check{background:var(--violet);border-color:var(--violet);}
+.task.done .task-check::after{content:'✓';font-size:9px;color:#0a0714;}
+.task.done .task-text{color:var(--text-dimmer);text-decoration:line-through;}
+.task-text{line-height:1.4;}
+.task-add{
+  margin-top:10px;
+  width:100%;
+  background:transparent;
+  border:1px dashed var(--border-strong);
+  color:var(--text-dimmer);
+  border-radius:8px;
+  padding:8px;
+  font-family:'Space Grotesk',sans-serif;
+  font-size:11.5px;
+  cursor:pointer;
+}
+.task-add:hover{color:var(--violet-bright);border-color:var(--violet);}
+
+/* ---------- center stage ---------- */
+.stage{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  padding:12px;
+  min-height:0;
+}
+#sphere{
+  width:min(46vw, 420px);
+  height:min(46vw, 420px);
+  max-height:52vh;
+}
+.assistant-name{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  letter-spacing:0.2em;
+  color:var(--violet-bright);
+  margin-top:-6vh;
+  text-shadow:0 0 12px rgba(139,92,246,0.6);
+}
+.state-line{
+  font-size:13px;
+  color:var(--text-dim);
+  height:20px;
+  margin-top:6px;
+}
+
+.composer{
+  width:min(560px, 92%);
+  margin-top:18px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background:var(--bg-panel-2);
+  border:1px solid var(--border-strong);
+  border-radius:14px;
+  padding:8px 8px 8px 16px;
+}
+.composer input{
+  flex:1;background:none;border:none;outline:none;
+  color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:13.5px;
+}
+.composer input::placeholder{color:var(--text-dimmer);}
+.mic-btn, .send-btn{
+  width:34px;height:34px;border-radius:10px;
+  border:1px solid var(--border);
+  background:rgba(139,92,246,0.08);
+  color:var(--text-dim);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;flex-shrink:0;
+  transition:all .2s ease;
+}
+.mic-btn:hover, .send-btn:hover{border-color:var(--violet);color:var(--violet-bright);}
+.mic-btn.active{
+  background:var(--violet);color:#0a0714;border-color:var(--violet);
+  box-shadow:0 0 14px 2px rgba(139,92,246,0.6);
+}
+
+/* ---------- conversation panel ---------- */
+.log{display:flex;flex-direction:column;gap:12px;}
+.msg{font-size:12.5px;line-height:1.5;}
+.msg .who{
+  font-family:'JetBrains Mono',monospace;
+  font-size:9.5px;letter-spacing:0.1em;
+  color:var(--text-dimmer);margin-bottom:3px;
+}
+.msg.user .who{color:var(--cyan);}
+.msg.ai .who{color:var(--violet-bright);}
+.msg .body{color:var(--text-dim);}
+.msg.ai .body{color:#d8ceff;}
+
+/* ---------- bottom dock ---------- */
+.dock{
+  flex-shrink:0;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap:10px;
+  padding:12px;
+  border-top:1px solid var(--border);
+  background:linear-gradient(90deg, rgba(139,92,246,0.06), rgba(232,121,249,0.06));
+}
+.dock-icon{
+  width:34px;height:34px;border-radius:9px;
+  background:rgba(255,255,255,0.03);
+  border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  transition:all .2s ease;
+}
+.dock-icon:hover{transform:translateY(-3px);border-color:var(--violet-bright);background:rgba(139,92,246,0.14);}
+.dock-icon svg{width:16px;height:16px;stroke:var(--text-dim);}
+.dock-icon:hover svg{stroke:var(--violet-bright);}
+
+@media (max-width:900px){
+  .main{grid-template-columns:1fr;}
+  .panel{display:none;}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="brand-mark"></span>AXIOM</div>
+  <div class="status-pill state-idle" id="statusPill"><span class="status-dot"></span><span id="statusText">idle</span></div>
+  <button class="status-pill" id="autoModeBtn" style="cursor:pointer;background:rgba(139,92,246,0.05);" title="Aktifkan agar AXIOM langsung menjawab saat dipanggil namanya">
+    <span class="status-dot" id="autoDot"></span><span id="autoModeText">Mode Otomatis: OFF</span>
+  </button>
+  <div class="clock" id="clock">--:--:--</div>
+</div>
+
+<div class="main">
+  <div class="panel">
+    <div class="section-label">KALENDER</div>
+    <div class="cal-head"><span class="cal-month" id="calMonth"></span></div>
+    <div class="cal-grid" id="calGrid"></div>
+
+    <div class="section-label">TUGAS</div>
+    <div id="taskList"></div>
+    <button class="task-add" id="addTaskBtn">+ tambah tugas</button>
+  </div>
+
+  <div class="stage">
+    <canvas id="sphere"></canvas>
+    <div class="assistant-name">A X I O M</div>
+    <div class="state-line" id="stateLine">Menunggu perintah...</div>
+    <div class="composer">
+      <input type="text" id="cmdInput" placeholder="Ketik perintah untuk AXIOM..." autocomplete="off">
+      <button class="mic-btn" id="micBtn" title="Bicara">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+      </button>
+      <button class="send-btn" id="sendBtn" title="Kirim">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="section-label">PERCAKAPAN</div>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<div class="dock">
+  <div class="dock-icon" title="Beranda"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg></div>
+  <div class="dock-icon" title="Berkas"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 4h6l2 3h8v11H4z"/></svg></div>
+  <div class="dock-icon" title="Kalender"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg></div>
+  <div class="dock-icon" title="Pesan"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+  <div class="dock-icon" title="Analitik"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="15"/></svg></div>
+  <div class="dock-icon" title="Pengaturan"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div>
+</div>
+
+<script>
+/* ================= CLOCK ================= */
+function tickClock(){
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString('id-ID', {hour12:false});
+}
+tickClock(); setInterval(tickClock, 1000);
+
+/* ================= CALENDAR ================= */
+(function buildCalendar(){
+  const now = new Date();
+  const monthNames = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  document.getElementById('calMonth').textContent = monthNames[now.getMonth()] + ' ' + now.getFullYear();
+  const dows = ['M','S','S','R','K','J','S'];
+  const grid = document.getElementById('calGrid');
+  dows.forEach(d=>{
+    const el = document.createElement('div');
+    el.className='cal-dow'; el.textContent=d; grid.appendChild(el);
+  });
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).getDay();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  for(let i=0;i<firstDay;i++){
+    const el = document.createElement('div'); el.className='cal-day empty'; grid.appendChild(el);
+  }
+  for(let d=1; d<=daysInMonth; d++){
+    const el = document.createElement('div');
+    el.className='cal-day'+(d===now.getDate()?' today':'');
+    el.textContent = d;
+    grid.appendChild(el);
+  }
+})();
+
+/* ================= TASKS ================= */
+let tasks = [
+  {text:'Rangkum email pagi ini', done:true},
+  {text:'Susun agenda rapat 14:00', done:false},
+  {text:'Pantau server backup malam', done:false},
+];
+function renderTasks(){
+  const list = document.getElementById('taskList');
+  list.innerHTML = '';
+  tasks.forEach((t, i)=>{
+    const row = document.createElement('div');
+    row.className = 'task' + (t.done?' done':'');
+    row.innerHTML = `<span class="task-check"></span><span class="task-text">${t.text}</span>`;
+    row.addEventListener('click', ()=>{ tasks[i].done = !tasks[i].done; renderTasks(); });
+    list.appendChild(row);
+  });
+}
+renderTasks();
+document.getElementById('addTaskBtn').addEventListener('click', ()=>{
+  const text = prompt('Tugas baru:');
+  if(text && text.trim()){
+    tasks.push({text:text.trim(), done:false});
+    renderTasks();
+  }
+});
+
+/* ================= CHAT LOG ================= */
+const logEl = document.getElementById('log');
+function addMsg(who, text){
+  const el = document.createElement('div');
+  el.className = 'msg ' + (who==='user'?'user':'ai');
+  el.innerHTML = `<div class="who">${who==='user'?'ANDA':'AXIOM'}</div><div class="body"></div>`;
+  logEl.appendChild(el);
+  el.querySelector('.body').textContent = text;
+  logEl.scrollTop = logEl.scrollHeight;
+  return el.querySelector('.body');
+}
+addMsg('ai', 'Sistem aktif. Saya memantau kalender dan tugas Anda. Ada yang bisa saya bantu?');
+
+/* ================= STATE MACHINE ================= */
+const pill = document.getElementById('statusPill');
+const statusText = document.getElementById('statusText');
+const stateLine = document.getElementById('stateLine');
+const stateLabels = {idle:'Menunggu perintah...', listening:'Mendengarkan...', thinking:'Memproses...', speaking:'Menjawab...'};
+let currentState = 'idle';
+function setState(s){
+  currentState = s;
+  pill.className = 'status-pill state-'+s;
+  statusText.textContent = s;
+  stateLine.textContent = stateLabels[s];
+  sphereTargetEnergy = {idle:0.35, listening:0.6, thinking:0.85, speaking:1.0}[s];
+  sphereColor = {idle:'violet', listening:'cyan', thinking:'violet', speaking:'magenta'}[s];
+}
+
+/* ================= COMMAND INTERPRETER ================= */
+function interpret(cmdRaw){
+  const cmd = cmdRaw.toLowerCase();
+  const now = new Date();
+  if(cmd.includes('jam') || cmd.includes('waktu')){
+    return 'Sekarang pukul ' + now.toLocaleTimeString('id-ID',{hour12:false}) + '.';
+  }
+  if(cmd.includes('tanggal') || cmd.includes('hari ini')){
+    return 'Hari ini ' + now.toLocaleDateString('id-ID',{weekday:'long', day:'numeric', month:'long', year:'numeric'}) + '.';
+  }
+  if(cmd.includes('tugas') && (cmd.includes('tambah') || cmd.includes('buat'))){
+    const parts = cmdRaw.split(':');
+    const item = parts.length>1 ? parts.slice(1).join(':').trim() : cmdRaw.replace(/tambah tugas/i,'').trim();
+    if(item){ tasks.push({text:item, done:false}); renderTasks(); return 'Tugas "'+item+'" sudah saya tambahkan ke daftar.'; }
+    return 'Sebutkan tugas apa yang ingin ditambahkan, contoh: "tambah tugas: kirim laporan".';
+  }
+  if(cmd.includes('tugas')){
+    const open = tasks.filter(t=>!t.done).length;
+    return 'Ada ' + open + ' tugas yang belum selesai di daftar Anda.';
+  }
+  if(cmd.includes('siapa kamu') || cmd.includes('kamu siapa')){
+    return 'Saya AXIOM, asisten AI pribadi yang mengelola jadwal, tugas, dan percakapan Anda dari satu panel.';
+  }
+  if(cmd.includes('halo') || cmd.includes('hai') || cmd.includes('hey')){
+    return 'Halo! Siap membantu — coba tanya jam, tanggal, atau minta saya menambah tugas.';
+  }
+  if(cmd.includes('lelucon') || cmd.includes('candaan')){
+    return 'Kenapa komputer tidak pernah kedinginan? Karena selalu ada banyak Windows terbuka.';
+  }
+  return 'Saya mencatat: "' + cmdRaw + '". Coba perintah seperti "jam berapa", "tambah tugas: ...", atau "ada tugas apa saja".';
+}
+
+/* ================= COMPOSER WIRING ================= */
+const input = document.getElementById('cmdInput');
+const sendBtn = document.getElementById('sendBtn');
+const micBtn = document.getElementById('micBtn');
+
+function submitCommand(){
+  const val = input.value.trim();
+  if(!val) return;
+  addMsg('user', val);
+  input.value = '';
+  setState('thinking');
+  const delay = 650 + Math.random()*600;
+  setTimeout(()=>{
+    setState('speaking');
+    const reply = interpret(val);
+    addMsg('ai', reply);
+    setTimeout(()=>{ setState('idle'); }, 1400 + reply.length*18);
+  }, delay);
+}
+sendBtn.addEventListener('click', submitCommand);
+input.addEventListener('keydown', e=>{ if(e.key==='Enter') submitCommand(); });
+input.addEventListener('focus', ()=>{ if(currentState==='idle') setState('listening'); });
+input.addEventListener('blur', ()=>{ if(currentState==='listening') setState('idle'); });
+
+/* ================= VOICE: WAKE WORD "AXIOM" + TTS ================= */
+const WAKE_WORDS = ['axiom', 'aksiom', 'eksiom', 'eksioum', 'aksioum', 'axiome', 'halo axiom', 'hai axiom'];
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+const synth = window.speechSynthesis;
+
+let recognition = null;      // untuk tombol mic manual (push-to-talk, sekali ucap)
+let autoRecognition = null;  // untuk mode otomatis (selalu mendengarkan wake word)
+let recognizing = false;
+let autoModeOn = false;
+let awaitingCommandAfterWake = false;
+let autoRestartTimer = null;
+
+// Web Speech API butuh "secure context" (https:// atau localhost/127.0.0.1).
+// Kalau file ini dibuka langsung dari disk (file://) atau lewat http:// biasa,
+// browser akan MENOLAK akses mikrofon secara diam-diam / melempar error 'not-allowed'.
+const isSecureCtx = window.isSecureContext ||
+  ['localhost','127.0.0.1'].includes(location.hostname);
+if(!SpeechRec || !isSecureCtx){
+  micBtn.disabled = true;
+  micBtn.style.opacity = '0.4';
+  micBtn.style.cursor = 'not-allowed';
+  let reason = !SpeechRec
+    ? 'Browser ini tidak mendukung Web Speech API. Gunakan Chrome atau Edge terbaru.'
+    : 'Mikrofon butuh koneksi aman (HTTPS) atau localhost. File ini dibuka lewat "'+location.protocol+'" sehingga browser memblokir akses mic. Jalankan lewat server lokal (mis. "python3 -m http.server" lalu buka http://localhost:PORT/) atau host di HTTPS.';
+  stateLine.textContent = 'Mic tidak tersedia — lihat pesan di konsol.';
+  console.warn('[AXIOM] Mic dinonaktifkan:', reason);
+  micBtn.title = reason;
+}
+
+function speak(text){
+  if(!synth) return;
+  synth.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'id-ID';
+  synth.speak(u);
+}
+
+// jarak edit sederhana, dipakai untuk mencocokkan "axiom" meski salah dengar
+function levenshtein(a, b){
+  const dp = Array.from({length: a.length+1}, ()=> new Array(b.length+1).fill(0));
+  for(let i=0;i<=a.length;i++) dp[i][0]=i;
+  for(let j=0;j<=b.length;j++) dp[0][j]=j;
+  for(let i=1;i<=a.length;i++){
+    for(let j=1;j<=b.length;j++){
+      dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j-1], dp[i-1][j], dp[i][j-1]);
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+// cari kata panggil di dalam teks, termasuk yang salah dengar (fuzzy)
+function findWakeWord(lowerText){
+  for(const w of WAKE_WORDS){
+    const idx = lowerText.indexOf(w);
+    if(idx !== -1) return {word: w, idx};
+  }
+  let pos = 0;
+  for(const raw of lowerText.split(/\s+/)){
+    const clean = raw.replace(/[^a-z]/g, '');
+    if(clean.length >= 4){
+      if(levenshtein(clean, 'axiom') <= 2 || levenshtein(clean, 'aksiom') <= 2){
+        return {word: raw, idx: lowerText.indexOf(raw, pos)};
+      }
+    }
+    pos += raw.length + 1;
+  }
+  return null;
+}
+
+// jawab otomatis: dipakai baik oleh input manual (Enter/kirim) maupun oleh wake word
+function answerCommand(text){
+  addMsg('user', text);
+  setState('thinking');
+  const delay = 500 + Math.random()*500;
+  setTimeout(()=>{
+    setState('speaking');
+    const reply = interpret(text);
+    addMsg('ai', reply);
+    speak(reply);
+    setTimeout(()=>{ if(!awaitingCommandAfterWake) setState('idle'); }, 1400 + reply.length*18);
+  }, delay);
+}
+
+// --- tombol mic manual: push-to-talk sekali ucap (tetap ada sebagai alternatif) ---
+if(SpeechRec && isSecureCtx){
+  recognition = new SpeechRec();
+  recognition.lang = 'id-ID';
+  recognition.interimResults = false;
+  recognition.onresult = (e)=>{
+    const text = e.results[0][0].transcript;
+    input.value = text;
+    submitCommand();
+  };
+  recognition.onerror = (e)=>{
+    console.warn('[AXIOM] error mic (manual):', e.error);
+    recognizing = false;
+    micBtn.classList.remove('active');
+    if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){
+      alert('Akses mikrofon ditolak. Klik ikon gembok/mic di address bar browser lalu izinkan mikrofon untuk situs ini, kemudian coba lagi.');
+      setState('idle');
+    } else if(e.error === 'no-speech'){
+      stateLine.textContent = 'Tidak ada suara terdengar. Coba lagi.';
+      setState('idle');
+    } else if(e.error === 'audio-capture'){
+      alert('Mikrofon tidak ditemukan. Pastikan perangkat mic terhubung dan tidak dipakai aplikasi lain.');
+      setState('idle');
+    } else {
+      stateLine.textContent = 'Terjadi error mic: ' + e.error;
+      setState('idle');
+    }
+  };
+  recognition.onend = ()=>{ recognizing=false; micBtn.classList.remove('active'); if(currentState==='listening') setState('idle'); };
+}
+micBtn.addEventListener('click', ()=>{
+  if(!recognition){
+    // Mic tidak tersedia (browser tidak didukung / bukan secure context) — sudah ditandai disabled di atas.
+    return;
+  }
+  if(recognizing){
+    try{ recognition.stop(); }catch(err){ console.warn('[AXIOM] gagal stop mic:', err); }
+    return;
+  }
+  try{
+    recognizing = true;
+    micBtn.classList.add('active');
+    setState('listening');
+    recognition.start();
+  }catch(err){
+    // Terjadi kalau recognition dianggap sudah berjalan ("InvalidStateError") atau error lain saat start
+    console.warn('[AXIOM] gagal memulai mic:', err);
+    recognizing = false;
+    micBtn.classList.remove('active');
+    setState('idle');
+    stateLine.textContent = 'Gagal memulai mic, coba klik lagi.';
+  }
+});
+
+// --- mode otomatis: mikrofon selalu menyala, mendengarkan nama "AXIOM" ---
+const autoModeBtn = document.getElementById('autoModeBtn');
+const autoDot = document.getElementById('autoDot');
+const autoModeText = document.getElementById('autoModeText');
+
+function setAutoModeUI(on){
+  autoModeText.textContent = 'Mode Otomatis: ' + (on ? 'ON' : 'OFF');
+  autoModeBtn.style.color = on ? 'var(--cyan)' : '';
+  autoModeBtn.style.borderColor = on ? 'rgba(126,230,242,0.35)' : '';
+  autoDot.style.background = on ? 'var(--cyan)' : 'var(--text-dimmer)';
+  autoDot.style.boxShadow = on ? '0 0 8px 2px var(--cyan)' : 'none';
+}
+
+function createAutoRecognition(){
+  const rec = new SpeechRec();
+  rec.lang = 'id-ID';
+  rec.continuous = true;
+  rec.interimResults = true;
+
+  rec.onresult = (e)=>{
+    let finalText = '';
+    let interimText = '';
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      if(e.results[i].isFinal) finalText += e.results[i][0].transcript;
+      else interimText += e.results[i][0].transcript;
+    }
+
+    // tampilkan apa yang sedang didengar, supaya kelihatan mic memang menangkap suara
+    if(interimText && currentState !== 'thinking' && currentState !== 'speaking'){
+      stateLine.textContent = 'Mendengar: "' + interimText.trim() + '"';
+    }
+
+    if(!finalText) return;
+    const lower = finalText.toLowerCase();
+    console.log('[AXIOM] final transcript:', finalText);
+
+    if(awaitingCommandAfterWake){
+      awaitingCommandAfterWake = false;
+      answerCommand(finalText.trim());
+      return;
+    }
+
+    const hit = findWakeWord(lower);
+    if(hit){
+      const rest = finalText.slice(hit.idx + hit.word.length).trim();
+      if(rest.length > 1){
+        answerCommand(rest);
+      } else {
+        // hanya menyebut nama saja -> tunggu perintah berikutnya
+        setState('listening');
+        stateLine.textContent = 'Ya? Silakan ucapkan perintahnya...';
+        awaitingCommandAfterWake = true;
+        speak('Ya, saya dengarkan.');
+      }
+    } else if(currentState === 'listening' && !awaitingCommandAfterWake){
+      setState('idle');
+    }
+  };
+
+  rec.onerror = (e)=>{
+    console.warn('[AXIOM] speech recognition error:', e.error);
+    if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){
+      autoModeOn = false;
+      setAutoModeUI(false);
+      alert('Akses mikrofon ditolak. Izinkan mikrofon di browser untuk memakai Mode Otomatis.');
+    }
+    // error lain (no-speech, network, audio-capture, aborted) ditangani oleh onend -> restart otomatis
+  };
+
+  rec.onend = ()=>{
+    if(!autoModeOn) return;
+    // beri jeda sebelum restart supaya tidak kena "recognition already started"
+    clearTimeout(autoRestartTimer);
+    autoRestartTimer = setTimeout(()=>{
+      if(!autoModeOn) return;
+      autoRecognition = createAutoRecognition();
+      try{
+        autoRecognition.start();
+      }catch(err){
+        console.warn('[AXIOM] gagal restart mic, mencoba lagi...', err);
+        clearTimeout(autoRestartTimer);
+        autoRestartTimer = setTimeout(()=>{ if(autoModeOn){ autoRecognition = createAutoRecognition(); try{autoRecognition.start();}catch(e2){} } }, 800);
+      }
+    }, 300);
+  };
+
+  return rec;
+}
+
+function startAutoListening(){
+  if(!SpeechRec){
+    alert('Browser ini tidak mendukung pengenalan suara (Web Speech API). Coba gunakan Chrome.');
+    return;
+  }
+  autoRecognition = createAutoRecognition();
+  try{
+    autoRecognition.start();
+  }catch(err){
+    console.warn('[AXIOM] gagal memulai mic:', err);
+  }
+}
+
+function stopAutoListening(){
+  clearTimeout(autoRestartTimer);
+  if(autoRecognition){
+    try{ autoRecognition.onend = null; autoRecognition.stop(); }catch(err){}
+  }
+  awaitingCommandAfterWake = false;
+  if(currentState==='listening') setState('idle');
+}
+
+autoModeBtn.addEventListener('click', ()=>{
+  autoModeOn = !autoModeOn;
+  setAutoModeUI(autoModeOn);
+  if(autoModeOn){
+    startAutoListening();
+    addMsg('ai', 'Mode otomatis aktif. Panggil "AXIOM" lalu ucapkan perintah, saya akan langsung menjawab. (Buka Console browser untuk lihat teks yang terdeteksi jika perlu debug.)');
+  } else {
+    stopAutoListening();
+    addMsg('ai', 'Mode otomatis dimatikan.');
+  }
+});
+
+/* ================= PARTICLE SPHERE ================= */
+const canvas = document.getElementById('sphere');
+const ctx = canvas.getContext('2d');
+let W, H, DPR;
+function resizeCanvas(){
+  DPR = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  W = rect.width; H = rect.height;
+  canvas.width = W*DPR; canvas.height = H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+const N = 900;
+const points = [];
+for(let i=0;i<N;i++){
+  const phi = Math.acos(1 - 2*(i+0.5)/N);
+  const theta = Math.PI * (1+Math.sqrt(5)) * i;
+  points.push({
+    x: Math.sin(phi)*Math.cos(theta),
+    y: Math.sin(phi)*Math.sin(theta),
+    z: Math.cos(phi),
+    jitter: Math.random()*Math.PI*2,
+    jspeed: 0.6 + Math.random()*1.2
+  });
+}
+
+let sphereTargetEnergy = 0.35;
+let sphereEnergy = 0;
+let sphereColor = 'violet';
+const palette = {
+  violet: [139,92,246],
+  cyan: [126,230,242],
+  magenta: [232,121,249]
+};
+let currentRGB = palette.violet.slice();
+
+let rotY = 0, rotX = 0;
+let bootProgress = 0;
+
+function draw(t){
+  ctx.clearRect(0,0,W,H);
+  const cx = W/2, cy = H/2;
+  const baseR = Math.min(W,H)*0.34;
+
+  sphereEnergy += (sphereTargetEnergy - sphereEnergy)*0.06;
+  const target = palette[sphereColor];
+  for(let k=0;k<3;k++) currentRGB[k] += (target[k]-currentRGB[k])*0.05;
+
+  bootProgress = Math.min(1, bootProgress + 0.012);
+  rotY += 0.0022 + sphereEnergy*0.0032;
+  rotX = Math.sin(t*0.00025)*0.18;
+
+  const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+  const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+
+  const sorted = [];
+  for(let i=0;i<N;i++){
+    const p = points[i];
+    const scatter = (1-bootProgress) * 1.8;
+    const nx = p.x + (Math.sin(p.jitter+i)*scatter);
+    const ny = p.y + (Math.cos(p.jitter*1.3+i)*scatter);
+    const nz = p.z + (Math.sin(p.jitter*0.7+i)*scatter);
+
+    let x = nx*cosY - nz*sinY;
+    let z = nx*sinY + nz*cosY;
+    let y = ny*cosX - z*sinX;
+    z = ny*sinX + z*cosX;
+
+    const wobble = 1 + Math.sin(t*0.002*p.jspeed + p.jitter + z*3)*0.05*sphereEnergy;
+    const r = baseR * wobble * bootProgress;
+    const persp = 260 / (260 - z*100);
+    const sx = cx + x*r*persp;
+    const sy = cy + y*r*persp;
+    const depth = (z+1.4)/2.4;
+    sorted.push({sx, sy, depth, persp});
+  }
+  sorted.sort((a,b)=>a.depth-b.depth);
+
+  for(const s of sorted){
+    const alpha = 0.15 + s.depth*0.75;
+    const size = (0.9 + s.depth*1.6) * (0.7+sphereEnergy*0.5);
+    ctx.beginPath();
+    ctx.arc(s.sx, s.sy, size, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${currentRGB[0]|0},${currentRGB[1]|0},${currentRGB[2]|0},${alpha})`;
+    ctx.fill();
+  }
+
+  // soft core glow
+  const glowR = baseR*0.55*bootProgress;
+  const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,glowR);
+  grad.addColorStop(0, `rgba(${currentRGB[0]|0},${currentRGB[1]|0},${currentRGB[2]|0},${0.12+sphereEnergy*0.18})`);
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(cx,cy,glowR,0,Math.PI*2);
+  ctx.fill();
+
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+setState('idle');
+</script>
+</body>
+</html>
