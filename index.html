@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>JARVIS — Personal Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #060B14;
+    --bg-2: #0A121D;
+    --panel: rgba(13,22,32,0.72);
+    --panel-solid: #0D1620;
+    --line: #1B2A3A;
+    --line-bright: #2C4256;
+    --cyan: #59E1E8;
+    --cyan-dim: #2E7A82;
+    --violet: #9086FF;
+    --amber: #FFB454;
+    --text: #E7F3F6;
+    --text-muted: #7C93A0;
+    --text-faint: #4A5D6B;
+    --danger: #FF6B6B;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background: radial-gradient(ellipse at 50% -10%, #0E1B2B 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    overflow:hidden;
+    height:100vh;
+    width:100vw;
+  }
+  .mono{font-family:'IBM Plex Mono', monospace;}
+  .display{font-family:'Space Grotesk', sans-serif;}
+
+  #app{position:relative; height:100vh; width:100vw; overflow:hidden;}
+
+  /* ---------- ambient grid / scanlines ---------- */
+  .grid-overlay{
+    position:absolute; inset:0; pointer-events:none; z-index:0;
+    background-image:
+      linear-gradient(rgba(89,225,232,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(89,225,232,0.035) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: radial-gradient(ellipse at 50% 30%, black 0%, transparent 75%);
+  }
+
+  /* ---------- SCREEN: BOOT ---------- */
+  #boot{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    z-index:5; transition: opacity .6s ease, visibility .6s ease;
+  }
+  #boot.hidden{opacity:0; visibility:hidden; pointer-events:none;}
+
+  .core-wrap{position:relative; width:220px; height:220px; display:flex; align-items:center; justify-content:center;}
+  .core-ring{position:absolute; border-radius:50%; border:1px solid var(--line-bright); }
+  .core-ring.r1{width:220px;height:220px; border-color: rgba(89,225,232,0.18); animation: spin 18s linear infinite;}
+  .core-ring.r2{width:170px;height:170px; border-style:dashed; border-color: rgba(144,134,255,0.25); animation: spin 12s linear infinite reverse;}
+  .core-ring.r3{width:120px;height:120px; border-color: rgba(89,225,232,0.35);}
+  .core-dot{position:absolute; width:6px; height:6px; border-radius:50%; background:var(--cyan); box-shadow:0 0 10px var(--cyan); top:-3px; left:calc(50% - 3px);}
+  .core-center{
+    width:74px; height:74px; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, rgba(89,225,232,0.9), rgba(89,225,232,0.05) 70%);
+    box-shadow: 0 0 40px rgba(89,225,232,0.35), inset 0 0 20px rgba(89,225,232,0.4);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes spin{ to{ transform: rotate(360deg);} }
+  @keyframes pulse{ 0%,100%{ transform:scale(1); opacity:.9;} 50%{ transform:scale(1.08); opacity:1;} }
+
+  #boot h1{ margin:34px 0 6px; font-size:15px; letter-spacing:0.32em; font-weight:600; color:var(--text);}
+  #boot p{ margin:0; color:var(--text-muted); font-size:12.5px; letter-spacing:0.08em;}
+  #boot-line{ margin-top:22px; font-size:11px; color:var(--cyan-dim); height:16px;}
+  .wake-btn{
+    margin-top:30px; padding:13px 30px; border-radius:2px; border:1px solid var(--cyan-dim);
+    background:transparent; color:var(--cyan); font-family:'Space Grotesk',sans-serif; font-size:13px;
+    letter-spacing:0.14em; cursor:pointer; transition:.2s; opacity:0;
+  }
+  .wake-btn.show{opacity:1;}
+  .wake-btn:hover{background:rgba(89,225,232,0.08); border-color:var(--cyan);}
+
+  /* ---------- SCREEN: SETUP ---------- */
+  #setup{
+    position:absolute; inset:0; z-index:4; display:none; overflow-y:auto;
+    padding: 34px 20px 60px;
+  }
+  #setup.active{display:block;}
+  .setup-inner{max-width:520px; margin:0 auto;}
+  .setup-head .eyebrow{color:var(--cyan-dim); font-size:11px; letter-spacing:0.18em;}
+  .setup-head h2{font-family:'Space Grotesk'; font-size:26px; margin:6px 0 4px; font-weight:600;}
+  .setup-head p{color:var(--text-muted); font-size:13.5px; line-height:1.5; margin:0 0 26px;}
+
+  .step-block{ border-top:1px solid var(--line); padding:20px 0; }
+  .step-block:first-of-type{border-top:none;}
+  .step-num{color:var(--text-faint); font-size:11px; letter-spacing:.14em; margin-bottom:6px;}
+  .step-title{font-family:'Space Grotesk'; font-size:15.5px; font-weight:600; margin-bottom:10px; display:flex; align-items:center; gap:8px;}
+  .step-title .tag{color:var(--violet); font-style:italic; font-weight:500;}
+
+  label.field-label{display:block; font-size:11.5px; color:var(--text-muted); margin:12px 0 6px; letter-spacing:.02em;}
+  input[type=text], textarea{
+    width:100%; background:var(--panel-solid); border:1px solid var(--line); color:var(--text);
+    padding:11px 12px; border-radius:2px; font-family:'Inter'; font-size:13.5px; resize:vertical;
+  }
+  input[type=text]:focus, textarea:focus{outline:none; border-color:var(--cyan-dim);}
+  textarea{min-height:64px; line-height:1.5;}
+
+  .model-row{display:flex; gap:8px; flex-wrap:wrap;}
+  .model-chip{
+    padding:8px 14px; border:1px solid var(--line); border-radius:2px; font-size:12.5px; cursor:pointer;
+    color:var(--text-muted); transition:.15s; font-family:'IBM Plex Mono';
+  }
+  .model-chip.selected{border-color:var(--cyan); color:var(--cyan); background:rgba(89,225,232,0.06);}
+  .model-chip .note{display:block; font-family:'Inter'; font-size:10.5px; color:var(--text-faint); margin-top:2px;}
+  .model-chip.selected .note{color:var(--cyan-dim);}
+  .model-chip.disabled{opacity:.4; cursor:not-allowed;}
+
+  .skills-list{display:flex; flex-direction:column; gap:8px; margin-top:6px;}
+  .skill-row{display:flex; gap:6px;}
+  .skill-row input{flex:1;}
+  .icon-btn{
+    background:transparent; border:1px solid var(--line); color:var(--text-muted); border-radius:2px;
+    width:38px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .icon-btn:hover{border-color:var(--cyan-dim); color:var(--cyan);}
+  .add-skill-btn{
+    margin-top:4px; align-self:flex-start; background:transparent; border:1px dashed var(--line-bright);
+    color:var(--text-muted); font-size:12px; padding:8px 12px; border-radius:2px; cursor:pointer; font-family:'Inter';
+  }
+  .add-skill-btn:hover{color:var(--cyan); border-color:var(--cyan-dim);}
+
+  .toggle-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px;}
+  .toggle-item{
+    border:1px solid var(--line); border-radius:2px; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:8px;
+  }
+  .toggle-item .t-label{font-size:12.5px;}
+  .toggle-item .t-sub{font-size:10.5px; color:var(--text-faint); display:block; margin-top:1px;}
+  .switch{position:relative; width:34px; height:19px; flex-shrink:0;}
+  .switch input{opacity:0; width:0; height:0;}
+  .slider{position:absolute; inset:0; background:var(--line); border-radius:20px; cursor:pointer; transition:.2s;}
+  .slider:before{content:""; position:absolute; width:13px; height:13px; left:3px; top:3px; background:var(--text-faint); border-radius:50%; transition:.2s;}
+  .switch input:checked + .slider{background:rgba(89,225,232,0.22); }
+  .switch input:checked + .slider:before{transform:translateX(15px); background:var(--cyan);}
+
+  .disclaimer{font-size:11px; color:var(--text-faint); line-height:1.5; margin-top:10px;}
+
+  .setup-actions{position:sticky; bottom:0; margin-top:26px; padding-top:16px; background:linear-gradient(0deg, var(--bg) 60%, transparent);}
+  .primary-btn{
+    width:100%; padding:14px; background:var(--cyan); color:#04151A; border:none; border-radius:2px;
+    font-family:'Space Grotesk'; font-weight:600; font-size:14px; letter-spacing:.04em; cursor:pointer;
+  }
+  .primary-btn:hover{background:#7DEAF0;}
+  .primary-btn:disabled{background:var(--line); color:var(--text-faint); cursor:not-allowed;}
+  .ghost-link{display:block; text-align:center; margin-top:12px; color:var(--text-muted); font-size:12px; background:none; border:none; cursor:pointer; font-family:'Inter';}
+  .ghost-link:hover{color:var(--cyan);}
+
+  /* ---------- SCREEN: CHAT ---------- */
+  #chat{position:absolute; inset:0; z-index:3; display:none; flex-direction:column;}
+  #chat.active{display:flex;}
+
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between; padding:14px 16px;
+    border-bottom:1px solid var(--line); flex-shrink:0;
+  }
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand-core{width:26px; height:26px; border-radius:50%; background:radial-gradient(circle at 35% 30%, var(--cyan), rgba(89,225,232,0.05) 70%); box-shadow:0 0 14px rgba(89,225,232,0.4); flex-shrink:0;}
+  .brand-name{font-family:'Space Grotesk'; font-size:14px; letter-spacing:.16em; font-weight:600;}
+  .brand-status{font-size:10px; color:var(--cyan-dim); letter-spacing:.05em; margin-top:1px;}
+  .top-actions{display:flex; gap:6px;}
+  .top-actions button{background:none; border:1px solid var(--line); color:var(--text-muted); border-radius:2px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; cursor:pointer;}
+  .top-actions button:hover{border-color:var(--cyan-dim); color:var(--cyan);}
+  .top-actions button.on{color:var(--cyan); border-color:var(--cyan-dim);}
+
+  #log{flex:1; overflow-y:auto; padding:18px 16px 8px; display:flex; flex-direction:column; gap:14px;}
+  .msg{max-width:86%; font-size:14px; line-height:1.55;}
+  .msg.user{align-self:flex-end; text-align:right;}
+  .msg.agent{align-self:flex-start;}
+  .msg .bubble-label{font-family:'IBM Plex Mono'; font-size:9.5px; letter-spacing:.12em; color:var(--text-faint); margin-bottom:4px;}
+  .msg.user .bubble-label{color:var(--text-faint);}
+  .msg.agent .bubble-label{color:var(--cyan-dim);}
+  .msg .bubble{
+    padding:10px 13px; border-radius:2px; white-space:pre-wrap; word-break:break-word;
+  }
+  .msg.user .bubble{background:rgba(144,134,255,0.10); border:1px solid rgba(144,134,255,0.25); color:#E9E7FF;}
+  .msg.agent .bubble{background:var(--panel); border:1px solid var(--line); }
+  .msg.agent .bubble::before{content:"";}
+  .typing{display:flex; gap:4px; padding:12px 13px;}
+  .typing span{width:5px; height:5px; border-radius:50%; background:var(--cyan-dim); animation:blink 1.2s infinite;}
+  .typing span:nth-child(2){animation-delay:.2s;} .typing span:nth-child(3){animation-delay:.4s;}
+  @keyframes blink{0%,80%,100%{opacity:.2;} 40%{opacity:1;}}
+
+  .empty-state{margin:auto; text-align:center; color:var(--text-faint); padding:0 30px;}
+  .empty-state .display{font-size:15px; color:var(--text-muted); margin-bottom:6px;}
+
+  .chips-row{display:flex; gap:8px; padding:0 16px 10px; overflow-x:auto; flex-shrink:0;}
+  .chips-row::-webkit-scrollbar{display:none;}
+  .skill-chip{
+    flex-shrink:0; padding:7px 13px; border:1px solid var(--line); border-radius:20px; font-size:12px;
+    color:var(--text-muted); background:var(--panel); cursor:pointer; white-space:nowrap; font-family:'Inter';
+  }
+  .skill-chip:hover{border-color:var(--cyan-dim); color:var(--cyan);}
+
+  .composer{display:flex; align-items:flex-end; gap:8px; padding:10px 14px calc(14px + env(safe-area-inset-bottom)); border-top:1px solid var(--line); flex-shrink:0;}
+  #input{
+    flex:1; background:var(--panel-solid); border:1px solid var(--line); color:var(--text); border-radius:20px;
+    padding:11px 16px; font-family:'Inter'; font-size:14px; resize:none; max-height:110px; line-height:1.4;
+  }
+  #input:focus{outline:none; border-color:var(--cyan-dim);}
+  .round-btn{
+    width:42px; height:42px; border-radius:50%; border:1px solid var(--line); background:var(--panel-solid);
+    color:var(--text-muted); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:.15s;
+  }
+  .round-btn.primary{background:var(--cyan); border-color:var(--cyan); color:#04151A;}
+  .round-btn.primary:hover{background:#7DEAF0;}
+  .round-btn.mic.listening{background:rgba(255,107,107,0.15); border-color:var(--danger); color:var(--danger); animation:mic-pulse 1.2s infinite;}
+  @keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,107,107,.4);} 50%{box-shadow:0 0 0 8px rgba(255,107,107,0);}}
+  .round-btn:disabled{opacity:.35; cursor:not-allowed;}
+
+  /* ---------- SETTINGS DRAWER (over chat) ---------- */
+  #drawer-backdrop{position:absolute; inset:0; background:rgba(3,7,12,0.6); z-index:6; display:none;}
+  #drawer-backdrop.active{display:block;}
+  #drawer{
+    position:absolute; top:0; right:0; height:100%; width:min(92vw,420px); background:var(--bg-2);
+    border-left:1px solid var(--line); z-index:7; transform:translateX(100%); transition:transform .28s ease;
+    overflow-y:auto; padding:20px 18px 40px;
+  }
+  #drawer.active{transform:translateX(0);}
+  .drawer-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
+  .drawer-head h3{font-family:'Space Grotesk'; font-size:16px; margin:0;}
+
+  ::-webkit-scrollbar{width:6px;}
+  ::-webkit-scrollbar-thumb{background:var(--line-bright); border-radius:3px;}
+
+  @media (min-width:640px){
+    #app{max-width:480px; margin:0 auto; box-shadow:0 0 80px rgba(0,0,0,0.6); border-left:1px solid var(--line); border-right:1px solid var(--line);}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="grid-overlay"></div>
+
+  <!-- ===================== BOOT ===================== -->
+  <div id="boot">
+    <div class="core-wrap">
+      <div class="core-ring r1"><div class="core-dot"></div></div>
+      <div class="core-ring r2"></div>
+      <div class="core-ring r3"></div>
+      <div class="core-center"></div>
+    </div>
+    <h1 class="display">J A R V I S</h1>
+    <p class="mono">personal agentic interface</p>
+    <div id="boot-line" class="mono"></div>
+    <button class="wake-btn" id="wakeBtn">WAKE JARVIS</button>
+  </div>
+
+  <!-- ===================== SETUP ===================== -->
+  <div id="setup">
+    <div class="setup-inner">
+      <div class="setup-head">
+        <div class="eyebrow mono">FIRST BOOT — SETUP</div>
+        <h2 class="display">Bangun agen pribadimu</h2>
+        <p>Isi bagian di bawah sekali saja. Semua tersimpan di browser ini dan dipakai Jarvis setiap kali kamu bicara dengannya.</p>
+      </div>
+
+      <div class="step-block">
+        <div class="step-num mono">STEP 01 — RUMAH</div>
+        <div class="step-title">Tempat Jarvis <span class="tag">tinggal</span></div>
+        <p style="color:var(--text-muted); font-size:12.5px; margin:0;">Jarjis berjalan langsung di browser ini — tidak perlu server, aktif selama tab ini terbuka.</p>
+      </div>
+
+      <div class="step-block">
+        <div class="step-num mono">STEP 03 — MODEL</div>
+        <div class="step-title">Pilih <span class="tag">otak</span>-nya</div>
+        <div class="model-row" id="modelRow">
+          <div class="model-chip selected" data-model="claude">Claude<span class="note">reasoning &amp; judgment</span></div>
+          <div class="model-chip disabled">Codex<span class="note">tidak tersedia di sini</span></div>
+          <div class="model-chip disabled">Gemini<span class="note">tidak tersedia di sini</span></div>
+        </div>
+      </div>
+
+      <div class="step-block">
+        <div class="step-num mono">STEP 04 — IDENTITAS</div>
+        <div class="step-title">Ajari dia <span class="tag">siapa kamu</span></div>
+        <label class="field-label">Nama kamu</label>
+        <input type="text" id="f-name" placeholder="mis. Robi Tridani">
+        <label class="field-label">Peran / pekerjaan</label>
+        <input type="text" id="f-role" placeholder="mis. Guru PJOK &amp; developer aplikasi sekolah">
+        <label class="field-label">Apa yang kamu kerjakan</label>
+        <textarea id="f-work" placeholder="mis. Membangun sistem absensi, modul ajar, dan aplikasi web untuk SMKN Rakit Kulim"></textarea>
+        <label class="field-label">Aturan main Jarvis (opsional)</label>
+        <textarea id="f-rules" placeholder="mis. Jawab singkat dan langsung, gunakan Bahasa Indonesia, tanya dulu sebelum mengasumsikan"></textarea>
+      </div>
+
+      <div class="step-block">
+        <div class="step-num mono">STEP 06 — SKILL</div>
+        <div class="step-title">Tambahkan <span class="tag">skill</span></div>
+        <p style="color:var(--text-muted); font-size:12.5px; margin:0 0 4px;">Prompt siap pakai yang muncul sebagai chip cepat saat chat.</p>
+        <div class="skills-list" id="skillsList"></div>
+        <button class="add-skill-btn" id="addSkillBtn">+ Tambah skill</button>
+      </div>
+
+      <div class="step-block">
+        <div class="step-num mono">STEP 07 — TOOLS</div>
+        <div class="step-title">Hubungkan <span class="tag">tools</span></div>
+        <div class="toggle-grid" id="toolsGrid"></div>
+        <div class="disclaimer">Simulasi — mengaktifkan toggle memberi tahu Jarvis untuk berasumsi tool ini ada saat menjawab. Ini bukan koneksi nyata ke akun email/kalender kamu.</div>
+      </div>
+
+      <div class="step-block">
+        <div class="step-num mono">STEP 08 — KANAL &amp; STEP 09 — SUARA</div>
+        <div class="step-title">Cara Jarvis <span class="tag">bicara</span></div>
+        <div class="toggle-grid" id="channelsGrid"></div>
+        <div class="disclaimer">Suara memakai Text-to-Speech &amp; Speech Recognition bawaan browser — tidak memakai ElevenLabs, tapi Jarvis benar-benar bisa dengar dan bicara di perangkat ini.</div>
+      </div>
+
+      <div class="setup-actions">
+        <button class="primary-btn" id="launchBtn">Aktifkan Jarvis</button>
+        <button class="ghost-link" id="cancelSetupBtn" style="display:none;">Batal, kembali ke chat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== CHAT ===================== -->
+  <div id="chat">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-core"></div>
+        <div>
+          <div class="brand-name">JARVIS</div>
+          <div class="brand-status mono" id="statusLine">ONLINE — model: claude</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="voiceOutBtn" title="Bacakan balasan">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>
+        </button>
+        <button id="settingsBtn" title="Pengaturan">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.13.32.35.6.63.82"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="log">
+      <div class="empty-state" id="emptyState">
+        <div class="display">Jarvis siap.</div>
+        <div class="mono" style="font-size:11px;">Ketik pesan, atau tekan mic untuk bicara langsung.</div>
+      </div>
+    </div>
+
+    <div class="chips-row" id="chipsRow"></div>
+
+    <div class="composer">
+      <button class="round-btn mic" id="micBtn" title="Bicara">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4"/></svg>
+      </button>
+      <textarea id="input" rows="1" placeholder="Tulis pesan untuk Jarvis..."></textarea>
+      <button class="round-btn primary" id="sendBtn" title="Kirim">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ===================== SETTINGS DRAWER ===================== -->
+  <div id="drawer-backdrop"></div>
+  <div id="drawer">
+    <div class="drawer-head">
+      <h3>Pengaturan Jarvis</h3>
+      <button class="icon-btn" id="closeDrawerBtn">✕</button>
+    </div>
+    <div class="step-block" style="border-top:none;">
+      <div class="step-num mono">IDENTITAS</div>
+      <label class="field-label">Nama kamu</label>
+      <input type="text" id="d-name">
+      <label class="field-label">Peran / pekerjaan</label>
+      <input type="text" id="d-role">
+      <label class="field-label">Apa yang kamu kerjakan</label>
+      <textarea id="d-work"></textarea>
+      <label class="field-label">Aturan main Jarvis</label>
+      <textarea id="d-rules"></textarea>
+    </div>
+    <div class="step-block">
+      <div class="step-num mono">SKILLS</div>
+      <div class="skills-list" id="d-skillsList"></div>
+      <button class="add-skill-btn" id="d-addSkillBtn">+ Tambah skill</button>
+    </div>
+    <div class="step-block">
+      <div class="step-num mono">TOOLS</div>
+      <div class="toggle-grid" id="d-toolsGrid"></div>
+    </div>
+    <div class="step-block">
+      <div class="step-num mono">KANAL &amp; SUARA</div>
+      <div class="toggle-grid" id="d-channelsGrid"></div>
+    </div>
+    <div class="step-block">
+      <button class="primary-btn" id="saveDrawerBtn">Simpan perubahan</button>
+      <button class="ghost-link" id="wipeBtn" style="color:var(--danger);">Hapus semua memori &amp; profil</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const TOOL_DEFS = [
+    {key:'email', label:'Email &amp; Kalender', sub:'reads, drafts, schedules'},
+    {key:'documents', label:'Documents', sub:'pulls &amp; edits files'},
+    {key:'browser', label:'Browser', sub:'goes and gets the answer'},
+  ];
+  const CHANNEL_DEFS = [
+    {key:'slack', label:'Slack / Telegram', sub:'talk to it anywhere'},
+    {key:'imessage', label:'iMessage', sub:'talk to it anywhere'},
+    {key:'voiceIn', label:'Dengar (mic)', sub:'Web Speech API'},
+    {key:'voiceOut', label:'Bicara (suara)', sub:'browser text-to-speech'},
+  ];
+
+  let state = {
+    profile: null, // {name, role, work, rules, model}
+    skills: [],    // [{name, prompt}]
+    tools: {},     // {email:false,...}
+    channels: {},  // {slack:false,...}
+    history: []    // [{role:'user'|'assistant', content:''}]
+  };
+
+  const el = (id)=>document.getElementById(id);
+  const uid = ()=>Math.random().toString(36).slice(2,9);
+
+  // ---------- storage ----------
+  async function loadState(){
+    try{
+      const r = await window.storage.get('jarvis:state');
+      if(r && r.value){
+        const parsed = JSON.parse(r.value);
+        state = Object.assign(state, parsed);
+      }
+    }catch(e){ /* no state yet */ }
+  }
+  async function saveState(){
+    try{ await window.storage.set('jarvis:state', JSON.stringify(state)); }
+    catch(e){ console.error('storage save failed', e); }
+  }
+
+  // ---------- boot sequence ----------
+  const bootLines = [
+    'initializing core...','loading agentic harness...','model: claude — online','memory bank: mounted','awaiting wake command'
+  ];
+  function playBoot(){
+    let i=0;
+    const lineEl = el('boot-line');
+    const iv = setInterval(()=>{
+      if(i < bootLines.length){ lineEl.textContent = bootLines[i]; i++; }
+      else { clearInterval(iv); el('wakeBtn').classList.add('show'); }
+    }, 480);
+  }
+
+  function goTo(screen){
+    el('boot').classList.add('hidden');
+    el('setup').classList.remove('active');
+    el('chat').classList.remove('active');
+    if(screen==='setup') el('setup').classList.add('active');
+    if(screen==='chat') el('chat').classList.add('active');
+  }
+
+  // ---------- setup: skills editor (generic, reused for setup + drawer) ----------
+  function renderSkillsList(containerId, skillsArr){
+    const c = el(containerId);
+    c.innerHTML = '';
+    skillsArr.forEach((s)=>{
+      const row = document.createElement('div');
+      row.className = 'skill-row';
+      row.innerHTML = `<input type="text" data-id="${s.id}" data-field="name" value="${escapeAttr(s.name)}" placeholder="Nama skill">
+        <input type="text" data-id="${s.id}" data-field="prompt" value="${escapeAttr(s.prompt)}" placeholder="Prompt lengkap">
+        <button class="icon-btn" data-remove="${s.id}">✕</button>`;
+      c.appendChild(row);
+    });
+    c.querySelectorAll('input').forEach(inp=>{
+      inp.addEventListener('input', (e)=>{
+        const id = e.target.getAttribute('data-id');
+        const field = e.target.getAttribute('data-field');
+        const item = skillsArr.find(x=>x.id===id);
+        if(item) item[field] = e.target.value;
+      });
+    });
+    c.querySelectorAll('[data-remove]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const id = btn.getAttribute('data-remove');
+        const idx = skillsArr.findIndex(x=>x.id===id);
+        if(idx>-1) skillsArr.splice(idx,1);
+        renderSkillsList(containerId, skillsArr);
+      });
+    });
+  }
+  function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
+
+  function renderToggleGrid(containerId, defs, obj){
+    const c = el(containerId);
+    c.innerHTML = '';
+    defs.forEach(d=>{
+      const item = document.createElement('div');
+      item.className = 'toggle-item';
+      const checked = obj[d.key] ? 'checked' : '';
+      item.innerHTML = `<span><span class="t-label">${d.label}</span><span class="t-sub">${d.sub}</span></span>
+        <label class="switch"><input type="checkbox" data-key="${d.key}" ${checked}><span class="slider"></span></label>`;
+      c.appendChild(item);
+    });
+    c.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+      cb.addEventListener('change', ()=>{ obj[cb.getAttribute('data-key')] = cb.checked; });
+    });
+  }
+
+  // temp working copies for setup screen
+  let setupSkills = [];
+  let setupTools = {};
+  let setupChannels = {};
+
+  function initSetupScreen(){
+    setupSkills = (state.skills.length ? state.skills : [
+      {id:uid(), name:'Ringkas ide', prompt:'Ringkas ide berikut jadi 3 poin singkat: '},
+    ]);
+    setupTools = Object.assign({email:false, documents:true, browser:false}, state.tools);
+    setupChannels = Object.assign({slack:false, imessage:false, voiceIn:true, voiceOut:true}, state.channels);
+    renderSkillsList('skillsList', setupSkills);
+    renderToggleGrid('toolsGrid', TOOL_DEFS, setupTools);
+    renderToggleGrid('channelsGrid', CHANNEL_DEFS, setupChannels);
+
+    if(state.profile){
+      el('f-name').value = state.profile.name||'';
+      el('f-role').value = state.profile.role||'';
+      el('f-work').value = state.profile.work||'';
+      el('f-rules').value = state.profile.rules||'';
+      el('cancelSetupBtn').style.display = 'block';
+    } else {
+      el('cancelSetupBtn').style.display = 'none';
+    }
+  }
+
+  el('addSkillBtn').addEventListener('click', ()=>{
+    setupSkills.push({id:uid(), name:'', prompt:''});
+    renderSkillsList('skillsList', setupSkills);
+  });
+
+  el('launchBtn').addEventListener('click', async ()=>{
+    state.profile = {
+      name: el('f-name').value.trim() || 'Kamu',
+      role: el('f-role').value.trim(),
+      work: el('f-work').value.trim(),
+      rules: el('f-rules').value.trim(),
+      model: 'claude'
+    };
+    state.skills = setupSkills.filter(s=>s.name.trim() || s.prompt.trim());
+    state.tools = setupTools;
+    state.channels = setupChannels;
+    await saveState();
+    renderChipsRow();
+    updateVoiceButtonUI();
+    goTo('chat');
+  });
+  el('cancelSetupBtn').addEventListener('click', ()=>goTo('chat'));
+
+  // ---------- wake ----------
+  el('wakeBtn').addEventListener('click', ()=>{
+    if(state.profile){
+      renderChipsRow();
+      updateVoiceButtonUI();
+      renderHistory();
+      goTo('chat');
+    } else {
+      initSetupScreen();
+      goTo('setup');
+    }
+  });
+
+  // ---------- chips row (skills quick actions) ----------
+  function renderChipsRow(){
+    const row = el('chipsRow');
+    row.innerHTML = '';
+    (state.skills||[]).forEach(s=>{
+      if(!s.name) return;
+      const chip = document.createElement('div');
+      chip.className = 'skill-chip';
+      chip.textContent = s.name;
+      chip.addEventListener('click', ()=>{
+        el('input').value = s.prompt;
+        sendMessage();
+      });
+      row.appendChild(chip);
+    });
+  }
+
+  // ---------- chat rendering ----------
+  function renderHistory(){
+    const log = el('log');
+    log.innerHTML='';
+    if(!state.history.length){
+      log.innerHTML = `<div class="empty-state" id="emptyState"><div class="display">Jarvis siap.</div><div class="mono" style="font-size:11px;">Ketik pesan, atau tekan mic untuk bicara langsung.</div></div>`;
+      return;
+    }
+    state.history.forEach(m=> appendMsgToDOM(m.role, m.content, false));
+    log.scrollTop = log.scrollHeight;
+  }
+  function appendMsgToDOM(role, content, scroll=true){
+    const log = el('log');
+    const empty = el('emptyState'); if(empty) empty.remove();
+    const wrap = document.createElement('div');
+    wrap.className = 'msg ' + (role==='user'?'user':'agent');
+    wrap.innerHTML = `<div class="bubble-label mono">${role==='user'? (state.profile? state.profile.name.toUpperCase():'YOU') : 'JARVIS'}</div>
+      <div class="bubble">${escapeHtml(content)}</div>`;
+    log.appendChild(wrap);
+    if(scroll) log.scrollTop = log.scrollHeight;
+    return wrap;
+  }
+  function escapeHtml(s){
+    const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+  }
+
+  function buildSystemPrompt(){
+    const p = state.profile || {};
+    const activeTools = Object.entries(state.tools||{}).filter(([k,v])=>v).map(([k])=>k);
+    const activeChannels = Object.entries(state.channels||{}).filter(([k,v])=>v).map(([k])=>k);
+    const skillsText = (state.skills||[]).filter(s=>s.name).map(s=>`- ${s.name}: ${s.prompt}`).join('\n');
+    return [
+      `Kamu adalah JARVIS, asisten AI pribadi untuk ${p.name||'pengguna'}.`,
+      p.role ? `Peran pengguna: ${p.role}.` : '',
+      p.work ? `Apa yang dikerjakan pengguna: ${p.work}.` : '',
+      p.rules ? `Aturan yang harus kamu ikuti: ${p.rules}.` : '',
+      skillsText ? `Skill/kemampuan khusus yang tersedia sebagai referensi:\n${skillsText}` : '',
+      activeTools.length ? `Anggap tools berikut sedang aktif secara konsep (ini simulasi UI, bukan koneksi nyata, jadi jangan berpura-pura sudah benar-benar mengirim email/membuka file sungguhan): ${activeTools.join(', ')}.` : '',
+      activeChannels.length ? `Kanal komunikasi yang diaktifkan pengguna: ${activeChannels.join(', ')}.` : '',
+      'Jawab singkat, jelas, dan langsung ke intinya. Gunakan Bahasa Indonesia kecuali diminta lain.'
+    ].filter(Boolean).join('\n');
+  }
+
+  async function callClaude(userText){
+    const recent = state.history.slice(-16).map(m=>({role: m.role, content: m.content}));
+    const body = {
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1000,
+      system: buildSystemPrompt(),
+      messages: [...recent, {role:'user', content:userText}]
+    };
+    let res;
+    try{
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      });
+    }catch(networkErr){
+      throw new Error('NETWORK: ' + (networkErr && networkErr.message ? networkErr.message : 'fetch gagal total (kemungkinan diblokir browser/CORS karena file dibuka di luar claude.ai)'));
+    }
+    let data;
+    try{ data = await res.json(); }
+    catch(parseErr){ throw new Error('HTTP ' + res.status + ': respons bukan JSON yang valid'); }
+
+    if(!res.ok){
+      const msg = (data && data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+      throw new Error('HTTP ' + res.status + ': ' + msg);
+    }
+    if(data && data.content){
+      return data.content.map(b=>b.type==='text'?b.text:'').join('\n').trim();
+    }
+    throw new Error('Respons tidak berisi content: ' + JSON.stringify(data));
+  }
+
+  let sending = false;
+  async function sendMessage(){
+    const input = el('input');
+    const text = input.value.trim();
+    if(!text || sending) return;
+    sending = true;
+    input.value='';
+    autoGrow(input);
+    el('sendBtn').disabled = true;
+
+    state.history.push({role:'user', content:text});
+    appendMsgToDOM('user', text);
+    saveState();
+
+    const log = el('log');
+    const typingWrap = document.createElement('div');
+    typingWrap.className='msg agent';
+    typingWrap.innerHTML = `<div class="bubble-label mono">JARVIS</div><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
+    log.appendChild(typingWrap); log.scrollTop = log.scrollHeight;
+
+    try{
+      const reply = await callClaude(text);
+      typingWrap.remove();
+      appendMsgToDOM('assistant', reply);
+      state.history.push({role:'assistant', content: reply});
+      saveState();
+      speakIfEnabled(reply);
+    }catch(e){
+      typingWrap.remove();
+      const detail = (e && e.message) ? e.message : 'error tidak diketahui';
+      appendMsgToDOM('assistant', 'Koneksi ke model gagal.\n\nDetail teknis: ' + detail + '\n\nCatatan: fitur panggilan API ini hanya berfungsi saat file dibuka sebagai pratinjau langsung di dalam claude.ai (bukan setelah didownload lalu dibuka di browser biasa / diunggah ke hosting lain), karena kunci API tidak disertakan di file ini demi keamanan.');
+    }
+    sending = false;
+    el('sendBtn').disabled = false;
+  }
+  el('sendBtn').addEventListener('click', sendMessage);
+  el('input').addEventListener('keydown', (e)=>{
+    if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); }
+  });
+  function autoGrow(ta){ ta.style.height='auto'; ta.style.height=Math.min(ta.scrollHeight,110)+'px'; }
+  el('input').addEventListener('input', (e)=>autoGrow(e.target));
+
+  // ---------- voice: speech recognition ----------
+  let recognition = null, listening = false;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(SR){
+    recognition = new SR();
+    recognition.lang = 'id-ID';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (e)=>{
+      const text = e.results[0][0].transcript;
+      el('input').value = text;
+      sendMessage();
+    };
+    recognition.onend = ()=>{ listening=false; el('micBtn').classList.remove('listening'); };
+    recognition.onerror = ()=>{ listening=false; el('micBtn').classList.remove('listening'); };
+  } else {
+    el('micBtn').disabled = true;
+    el('micBtn').title = 'Mic tidak didukung browser ini';
+  }
+  el('micBtn').addEventListener('click', ()=>{
+    if(!recognition) return;
+    if(listening){ recognition.stop(); return; }
+    listening = true;
+    el('micBtn').classList.add('listening');
+    recognition.start();
+  });
+
+  // ---------- voice: speech synthesis ----------
+  function speakIfEnabled(text){
+    if(!(state.channels && state.channels.voiceOut)) return;
+    if(!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'id-ID';
+    u.rate = 1.02;
+    window.speechSynthesis.speak(u);
+  }
+  function updateVoiceButtonUI(){
+    const on = !!(state.channels && state.channels.voiceOut);
+    el('voiceOutBtn').classList.toggle('on', on);
+  }
+  el('voiceOutBtn').addEventListener('click', async ()=>{
+    state.channels = state.channels || {};
+    state.channels.voiceOut = !state.channels.voiceOut;
+    updateVoiceButtonUI();
+    await saveState();
+  });
+
+  // ---------- settings drawer ----------
+  let drawerSkills = [], drawerTools = {}, drawerChannels = {};
+  function openDrawer(){
+    el('d-name').value = state.profile.name||'';
+    el('d-role').value = state.profile.role||'';
+    el('d-work').value = state.profile.work||'';
+    el('d-rules').value = state.profile.rules||'';
+    drawerSkills = JSON.parse(JSON.stringify(state.skills||[])).map(s=>({...s, id: s.id||uid()}));
+    drawerTools = Object.assign({}, state.tools);
+    drawerChannels = Object.assign({}, state.channels);
+    renderSkillsList('d-skillsList', drawerSkills);
+    renderToggleGrid('d-toolsGrid', TOOL_DEFS, drawerTools);
+    renderToggleGrid('d-channelsGrid', CHANNEL_DEFS, drawerChannels);
+    el('drawer-backdrop').classList.add('active');
+    el('drawer').classList.add('active');
+  }
+  function closeDrawer(){
+    el('drawer-backdrop').classList.remove('active');
+    el('drawer').classList.remove('active');
+  }
+  el('settingsBtn').addEventListener('click', openDrawer);
+  el('closeDrawerBtn').addEventListener('click', closeDrawer);
+  el('drawer-backdrop').addEventListener('click', closeDrawer);
+  el('d-addSkillBtn').addEventListener('click', ()=>{
+    drawerSkills.push({id:uid(), name:'', prompt:''});
+    renderSkillsList('d-skillsList', drawerSkills);
+  });
+  el('saveDrawerBtn').addEventListener('click', async ()=>{
+    state.profile = {
+      name: el('d-name').value.trim()||'Kamu',
+      role: el('d-role').value.trim(),
+      work: el('d-work').value.trim(),
+      rules: el('d-rules').value.trim(),
+      model:'claude'
+    };
+    state.skills = drawerSkills.filter(s=>s.name.trim()||s.prompt.trim());
+    state.tools = drawerTools;
+    state.channels = drawerChannels;
+    await saveState();
+    renderChipsRow();
+    updateVoiceButtonUI();
+    closeDrawer();
+  });
+  el('wipeBtn').addEventListener('click', async ()=>{
+    if(!confirm('Hapus semua profil, skill, dan riwayat percakapan Jarvis?')) return;
+    state = {profile:null, skills:[], tools:{}, channels:{}, history:[]};
+    await saveState();
+    closeDrawer();
+    goTo('boot');
+    el('boot').classList.remove('hidden');
+  });
+
+  // ---------- model chip (visual only, claude fixed) ----------
+  document.querySelectorAll('.model-chip:not(.disabled)').forEach(c=>{
+    c.addEventListener('click', ()=>{
+      document.querySelectorAll('.model-chip').forEach(x=>x.classList.remove('selected'));
+      c.classList.add('selected');
+    });
+  });
+
+  // ---------- init ----------
+  (async function init(){
+    await loadState();
+    playBoot();
+  })();
+})();
+</script>
+</body>
+</html>
